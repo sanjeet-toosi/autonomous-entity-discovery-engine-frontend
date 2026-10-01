@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# business-graph-frontend
 
-## Getting Started
-
-First, run the development server:
+Real-time control center for the Autonomous Business Graph Agent. Next.js (App Router),
+TypeScript, Tailwind v4, TanStack Query, WebSocket live updates.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local      # NEXT_PUBLIC_API_URL / NEXT_PUBLIC_WS_URL → backend (default :8010)
+pnpm install
+pnpm dev                        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Screens
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Route | What it shows |
+|---|---|
+| `/` Control Center | mission input with interpretation preview, run controller (pause/resume/stop), metric cards with 1h/24h/7d/total ranges, live activity feed with category filters + raw log, currently-processing domains with stage, worker fleet, frontier |
+| `/runs`, `/runs/[id]` | run list with lineage; live run dashboard with errors, checkpoints, graph changes, businesses/hour sparkline |
+| `/graph` | progressive hierarchy explorer (server aggregation, filters: country / confidence / last 24h), search, business inspector drawer |
+| `/businesses` | searchable, paginated node list → inspector (overview, categories, evidence, relationships, pages, history, agent activity, outbound discoveries) |
+| `/categories`, `/categories/[id]` | taxonomy list and category inspector (roll-ups, top countries, subcategories, history) |
+| `/brain` | vertical experts, strategies with promote/reject, lessons with validate/reject, source intelligence, failures, experiments, learned knowledge |
+| `/activity` | full event stream (live + paginated history) |
+| `/system` | infra health, worker heartbeats, queue depth, crawl governance, recent errors |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Real-time model
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+On load each page fetches a REST snapshot, then attaches to `/ws/runs/{id}` (or `/ws/global`).
+`METRICS_UPDATED` and `STAGE_CHANGED` events update state without persisting; other events are
+prepended to the feed and invalidate queries (throttled). On reconnect the snapshot is reloaded.

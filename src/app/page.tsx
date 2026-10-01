@@ -1,69 +1,71 @@
-import Image from "next/image";
+"use client";
+import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { useLive } from "@/lib/live";
+import { fmtNum, fmtPct } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/shell";
+import { MissionInput } from "@/components/control/mission-input";
+import { RunController } from "@/components/control/run-controller";
+import { MetricCard, MiniStat } from "@/components/control/metric-cards";
+import { ActivityFeed } from "@/components/control/activity-feed";
+import { CurrentJobs } from "@/components/control/current-jobs";
+import { WorkerStatus } from "@/components/control/worker-status";
+import { Panel, Select } from "@/components/ui/primitives";
 
-export default function Home() {
+export default function ControlCenter() {
+  const [range, setRange] = useState("24h");
+  const missions = useQuery({ queryKey: ["missions"], queryFn: api.missions, refetchInterval: 8000 });
+  const active = missions.data?.find((m) => m.active_run_id);
+  const runId = active?.active_run_id ?? null;
+  const run = useQuery({ queryKey: ["run", runId], queryFn: () => api.run(runId!), enabled: !!runId, refetchInterval: 10000 });
+  const stats = useQuery({ queryKey: ["stats", range, runId], queryFn: () => api.stats({ range }), refetchInterval: 10000 });
+  const live = useLive(runId, { global: true });
+  const history = useQuery({ queryKey: ["activity-initial", runId], queryFn: () => api.activity({ run_id: runId ?? undefined, limit: 150 }) });
+  const events = [...live.events, ...(history.data ?? [])].slice(0, 400);
+  const snap = live.snapshot ?? run.data?.snapshot ?? null;
+  const m = stats.data?.metrics;
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="flex h-full min-h-0 flex-col">
+      <PageHeader title="Control Center" subtitle="Start a discovery mission and watch the agent grow the business graph in real time." action={
+        <div className="flex items-center gap-2 text-xs text-muted"><span className={live.connected ? "text-accent" : "text-dim"}>●</span> {live.connected ? "live" : "reconnecting"}
+          <Select value={range} onChange={(e) => setRange(e.target.value)} className="ml-3"><option value="1h">Last hour</option><option value="24h">Last 24 hours</option><option value="7d">Last 7 days</option><option value="all">Total</option></Select></div>} />
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto space-y-4 p-6">
+        {!runId && <MissionInput />}
+        {runId && run.data && <RunController run={run.data} liveStatus={live.runStatus} runtime={snap?.runtime_seconds} />}
+        <div className="grid [&>*]:min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Businesses" value={stats.data?.cards.businesses.total} change={stats.data?.cards.businesses.change} changeLabel={`last ${range}`} />
+          <MetricCard label="Categories" value={stats.data?.cards.categories.total} change={stats.data?.cards.categories.change} changeLabel={`last ${range}`} tone="violet" />
+          <MetricCard label="Graph edges" value={stats.data?.cards.edges.total} change={stats.data?.cards.edges.change} changeLabel={`last ${range}`} tone="blue" />
+          <MetricCard label="Candidates" value={stats.data?.cards.candidates.total} change={stats.data?.cards.candidates.change} changeLabel={`last ${range}`} tone="amber" hint={m ? `${fmtNum(m.queue_size)} queued · ${fmtNum(m.processing)} processing` : undefined} />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="grid [&>*]:min-w-0 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <MiniStat label="Domains crawled" value={fmtNum(m?.domains_crawled)} sub={`${fmtNum(m?.pages_fetched)} pages`} />
+          <MiniStat label="Valid businesses" value={fmtNum(m?.valid_businesses)} sub={`${fmtNum(m?.rejected_domains)} rejected`} />
+          <MiniStat label="Duplicates prevented" value={fmtNum(m?.duplicates_prevented)} sub={`${fmtPct(m?.duplicate_rate)} dup rate`} />
+          <MiniStat label="Avg confidence" value={fmtPct(m?.avg_confidence)} />
+          <MiniStat label="Businesses / hour" value={fmtNum(m?.businesses_per_hour)} sub={`${fmtNum(m?.new_candidates_per_hour)} new domains/h`} />
+          <MiniStat label="Error rate" value={fmtPct(m?.error_rate, 1)} sub={`${fmtNum(m?.crawl_errors)} errors · ${fmtNum(m?.active_workers)} workers`} />
         </div>
-      </main>
+        <div className="grid [&>*]:min-w-0 gap-4 xl:grid-cols-[1fr_380px]">
+          <Panel title="Live activity" padded={false} action={<Link href="/activity" className="text-xs text-muted hover:text-fg">Full log →</Link>}>
+            <ActivityFeed events={events} height="h-[560px]" />
+          </Panel>
+          <div className="space-y-4">
+            <Panel title="Currently processing"><CurrentJobs snapshot={snap} stages={live.stages} /></Panel>
+            <Panel title="Workers"><WorkerStatus /></Panel>
+            {runId && <Panel title="Frontier">
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <MiniStat label="Queued" value={fmtNum(snap?.frontier.queued)} /><MiniStat label="Processing" value={fmtNum(snap?.frontier.processing)} />
+                <MiniStat label="Processed" value={fmtNum(snap?.frontier.processed)} /><MiniStat label="Rejected" value={fmtNum(snap?.frontier.rejected)} />
+              </div>
+              {snap?.cursor_state?.search_index !== undefined && <div className="mt-2 text-xs text-dim">search plan cursor: {snap.cursor_state.search_index}</div>}
+            </Panel>}
+          </div>
+        </div>
+        {runId && <div className="rounded-lg border border-dashed border-line p-4 text-sm text-muted">A run is active. Stop it to start a different mission, or <Link href="/runs" className="text-fg underline">manage runs</Link>.</div>}
+      </div>
     </div>
   );
 }
